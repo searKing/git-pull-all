@@ -35,11 +35,19 @@ def update_git_repo(git_repo_dir: str, git_stash_if_have_uncommitted_changes: bo
                 if not yes_or_no("Repo " + git_repo_dir + " have uncommitted changes, \n\tgit reset --hard"):
                     dirty_git_repo_dirs.append(git_repo_dir)
                     return
-            git_repo.git.stash('save', True)
+            try:
+                git_repo.git.stash('save', True)
+            except Exception as exception:
+                print("git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(exception))
+                return
 
         remote_repo = git_repo.remote()
         print("start pulling from remote for: %s\r\n" % (git_repo_dir))
-        remote_repo.pull()
+        try:
+            remote_repo.pull()
+        except Exception as exception:
+            print("git pull repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(exception))
+            return
         print("Done pulling for %s\r\n" % (git_repo_dir))
     except NoSuchPathError as e:
         pass
