@@ -8,6 +8,17 @@ import sys
 import getopt
 
 
+def yes_or_no(msg: str):
+    yes_no = input(msg + " ? [Y]es or [n]o?")
+    yes_no = yes_no.lower()
+    if yes_no == "yes" or yes_no == "y":
+        return True
+    elif yes_no == "no" or yes_no == "n":
+        return False
+    else:
+        return True
+
+
 # is_git_dir returns if current directory has .git/
 def is_git_dir(dir_path: str):
     repo_git_dir = os.path.join(dir_path, '.git')
@@ -16,13 +27,16 @@ def is_git_dir(dir_path: str):
     return True
 
 
-def update_git_repo(git_repo_dir: str, dirty_git_repo_dirs: list):
+def update_git_repo(git_repo_dir: str, git_stash_if_have_uncommitted_changes: bool, dirty_git_repo_dirs: list):
     try:
-
         git_repo = git.Repo(git_repo_dir)
         if git_repo.is_dirty():
-            dirty_git_repo_dirs.append(git_repo_dir)
-            return
+            if not git_stash_if_have_uncommitted_changes:
+                if not yes_or_no("Repo " + git_repo_dir + " have uncommitted changes, \n\tgit reset --hard"):
+                    dirty_git_repo_dirs.append(git_repo_dir)
+                    return
+            git_repo.git.stash('save', True)
+
         remote_repo = git_repo.remote()
         print("start pulling from remote for: %s\r\n" % (git_repo_dir))
         remote_repo.pull()
@@ -35,19 +49,25 @@ def update_git_repo(git_repo_dir: str, dirty_git_repo_dirs: list):
         pass
 
 
-def update_git_repo_thread(root_path: str, dirty_git_repo_dirs: list, git_update_thread_pools: list):
-    git_update_thread_ = threading.Thread(target=update_git_repo, args=(root_path, dirty_git_repo_dirs))
-    git_update_thread_.start()
-    git_update_thread_pools.append(git_update_thread_)
+def update_git_repo_thread(root_path: str, git_stash_if_have_uncommitted_changes: bool, dirty_git_repo_dirs: list,
+                           git_update_thread_pools: list):
+    if git_stash_if_have_uncommitted_changes:
+        git_update_thread_ = threading.Thread(target=update_git_repo, args=(root_path, True, dirty_git_repo_dirs))
+        git_update_thread_.start()
+        git_update_thread_pools.append(git_update_thread_)
+    else:
+        update_git_repo(root_path, False, dirty_git_repo_dirs)
 
 
-def walk_and_update(root_path: str, continue_when_meet_git: bool, depth: int, max_depth: int, dirty_git_repo_dirs: list,
+def walk_and_update(root_path: str, continue_when_meet_git: bool, depth: int, max_depth: int,
+                    git_stash_if_have_uncommitted_changes: bool, dirty_git_repo_dirs: list,
                     git_update_thread_pools: list):
     if depth >= max_depth:
         print("jump for %s too deep: depth[%d] max_depth[%d]\r\n" % (root_path, depth, max_depth))
         return
     if is_git_dir(root_path):
-        update_git_repo_thread(root_path, dirty_git_repo_dirs, git_update_thread_pools)
+        update_git_repo_thread(root_path, git_stash_if_have_uncommitted_changes, dirty_git_repo_dirs,
+                               git_update_thread_pools)
         if not continue_when_meet_git:
             # print("jump subdirs for %s meet git\r\n" % (root_path))
             return
@@ -55,7 +75,8 @@ def walk_and_update(root_path: str, continue_when_meet_git: bool, depth: int, ma
     for root_dir, sub_dirs, sub_files in os.walk(root_path):
         for sub_dir in sub_dirs:
             walk_and_update(os.path.join(root_dir, sub_dir), continue_when_meet_git, depth,
-                            max_depth, dirty_git_repo_dirs, git_update_thread_pools)
+                            max_depth, git_stash_if_have_uncommitted_changes, dirty_git_repo_dirs,
+                            git_update_thread_pools)
         sub_dirs.clear()
         sub_files.clear()
 
@@ -71,23 +92,30 @@ def main(argv=None):
     try:
         try:
             g_walk_paths: list = ["."]
+            g_git_stash_if_have_uncommitted_changes: bool = False
             g_continue_when_meet_git: bool = False
             g_stop_when_meet_max_depth: int = 10
-            opts, args = getopt.getopt(argv[1:], "hp:cd:",
-                                       ["help", "path", "continue_when_meet_git=True", "stop_when_meet_max_depth=10"])
+            opts, args = getopt.getopt(argv[1:], "hycd:",
+                                       ["help", "path", "git_stash_if_have_uncommitted_changes",
+                                        "continue_when_meet_git", "stop_when_meet_max_depth=10"])
             if len(args) > 0:
                 g_walk_paths = args
             for op, value in opts:
+                if op == "-y":
+                    g_git_stash_if_have_uncommitted_changes = True
                 if op == "-c":
                     g_continue_when_meet_git = True
                 elif op == "-d":
                     g_stop_when_meet_max_depth = value
                 elif op == "-h":
-                    print("=======""Usage:")
-                    print("python git_pull_all.py .")
-                    print("python git_pull_all.py -c:true -d 10 YourPath")
-                    print("python git_pull_all.py --continue_when_meet_git:true -stop_when_meet_max_depth 10 YourPath")
-                    print("=======")
+                    print("=======\r\n""Usage:\r\n")
+                    print("python git_pull_all.py .\r\n")
+                    print("python git_pull_all.py -y -c -d 10 YourPath\r\n")
+                    print("python git_pull_all.py"
+                          " --git_stash_if_have_uncommitted_changes "
+                          "--continue_when_meet_git "
+                          "--stop_when_meet_max_depth 10 YourPath")
+                    print("=======\r\n")
                     Usage("-h")
                     sys.exit()
 
@@ -95,19 +123,21 @@ def main(argv=None):
             g_git_update_thread_pools = []
             for walk_path in g_walk_paths:
                 walk_and_update(walk_path, g_continue_when_meet_git, 0,
-                                g_stop_when_meet_max_depth, g_dirty_git_repo_dirs, g_git_update_thread_pools)
+                                g_stop_when_meet_max_depth, g_git_stash_if_have_uncommitted_changes,
+                                g_dirty_git_repo_dirs, g_git_update_thread_pools)
             for git_update_thread in g_git_update_thread_pools:
                 git_update_thread.join(30)
             if len(g_dirty_git_repo_dirs) != 0:
-                print('these repos have uncommitted changes:')
+                print('these repos have uncommitted changes:\r\n')
                 for dirty_repo_dir in g_dirty_git_repo_dirs:
-                    print('dir %s has uncommited change, please check' % (dirty_repo_dir))
+                    print('dir %s has uncommited change, please check\r\n' % (dirty_repo_dir))
 
+            print("Done git pull all\r\n")
         except getopt.error as msg:
             raise Usage(msg)
     except Usage as err:
         print >> sys.stderr, err.msg
-        print >> sys.stderr, "for help use --help"
+        print >> sys.stderr, "for help use --help\r\n"
         return 2
 
 
