@@ -27,18 +27,19 @@ def is_git_dir(dir_path: str):
     return True
 
 
-def update_git_repo(git_repo_dir: str, git_stash_if_have_uncommitted_changes: bool, dirty_git_repo_dirs: list):
+def update_git_repo(git_repo_dir: str, git_stash_if_have_uncommitted_changes: bool, unhandled_git_repo_dirs: list):
     try:
         git_repo = git.Repo(git_repo_dir)
         if git_repo.is_dirty():
             if not git_stash_if_have_uncommitted_changes:
                 if not yes_or_no("Repo " + git_repo_dir + " have uncommitted changes, \n\tgit reset --hard"):
-                    dirty_git_repo_dirs.append(git_repo_dir)
+                    unhandled_git_repo_dirs.append(git_repo_dir)
                     return
             try:
                 git_repo.git.stash('save', True)
             except Exception as exception:
                 print("git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(exception))
+                unhandled_git_repo_dirs.append(git_repo_dir)
                 return
 
         remote_repo = git_repo.remote()
@@ -47,6 +48,7 @@ def update_git_repo(git_repo_dir: str, git_stash_if_have_uncommitted_changes: bo
             remote_repo.pull()
         except Exception as exception:
             print("git pull repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(exception))
+            unhandled_git_repo_dirs.append(git_repo_dir)
             return
         print("Done pulling for %s\r\n" % (git_repo_dir))
     except NoSuchPathError as e:
@@ -136,9 +138,9 @@ def main(argv=None):
             for git_update_thread in g_git_update_thread_pools:
                 git_update_thread.join(30)
             if len(g_dirty_git_repo_dirs) != 0:
-                print('these repos have uncommitted changes:\r\n')
+                print('these repos have uncommitted changes or conflicts:\r\n')
                 for dirty_repo_dir in g_dirty_git_repo_dirs:
-                    print('dir %s has uncommited change, please check\r\n' % (dirty_repo_dir))
+                    print('dir %s has uncommited changes or conflicts, please check\r\n' % (dirty_repo_dir))
 
             print("Done git pull all\r\n")
         except getopt.error as msg:
