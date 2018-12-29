@@ -47,12 +47,12 @@ def update_git_repo(git_cmd_type: GitCommandType, git_repo_dir: str, git_stash_i
                 git_repo.git.stash('save', True)
             except Exception as exception:
                 print(
-                    "git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended\r\n" + str(exception))
+                    "git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(exception))
                 unhandled_git_repo_dirs.append(git_repo_dir)
                 return
 
         remote_repo = git_repo.remote()
-        print("start git %s from remote for: %s\r\n" % (git_cmd_type.name, git_repo_dir))
+        print("start git %s from remote for: %s" % (git_cmd_type.name, git_repo_dir), end='')
         try:
             if git_cmd_type == GitCommandType.pull:
                 remote_repo.pull()
@@ -61,15 +61,17 @@ def update_git_repo(git_cmd_type: GitCommandType, git_repo_dir: str, git_stash_i
             elif git_cmd_type == GitCommandType.nop:
                 pass
             else:
+                print("")
                 raise Exception('unrecognised git command: ' + git_cmd_type.name)
 
         except Exception as exception:
+            print("")
             print(
                 "git " + git_cmd_type.name + " repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended" + str(
                     exception))
             unhandled_git_repo_dirs.append(git_repo_dir)
             return
-        print("Done git %s for %s\r\n" % (git_cmd_type.name, git_repo_dir))
+        print("... Done.")
     except NoSuchPathError as e:
         pass
     except InvalidGitRepositoryError as e:
@@ -95,13 +97,13 @@ def walk_and_update(git_cmd_type: GitCommandType, root_path: str, continue_when_
                     git_stash_if_have_uncommitted_changes: bool, dirty_git_repo_dirs: list,
                     git_update_thread_pools: list):
     if depth >= max_depth:
-        print("jump for %s too deep: depth[%d] max_depth[%d]\r\n" % (root_path, depth, max_depth))
+        print("jump for %s too deep: depth[%d] max_depth[%d]" % (root_path, depth, max_depth))
         return
     if is_git_dir(root_path):
         update_git_repo_thread(git_cmd_type, root_path, git_stash_if_have_uncommitted_changes, dirty_git_repo_dirs,
                                git_update_thread_pools)
         if not continue_when_meet_git:
-            # print("jump subdirs for %s meet git\r\n" % (root_path))
+            # print("jump subdirs for %s meet git" % (root_path))
             return
     depth = depth + 1
     for root_dir, sub_dirs, sub_files in os.walk(root_path):
@@ -143,14 +145,14 @@ def main(argv=None):
                 elif op == "-d":
                     g_stop_when_meet_max_depth = value
                 elif op == "-h":
-                    print("=======\r\n""Usage:\r\n")
-                    print("python git_pull_all.py pull|push .\r\n")
-                    print("python git_pull_all.py -y -c -d 10 pull|push YourPath\r\n")
+                    print("=======""Usage:")
+                    print("python git_pull_all.py pull|push .")
+                    print("python git_pull_all.py -y -c -d 10 pull|push YourPath")
                     print("python git_pull_all.py"
                           " --git_stash_if_have_uncommitted_changes "
                           "--continue_when_meet_git "
                           "--stop_when_meet_max_depth=10 pull|push YourPath")
-                    print("=======\r\n")
+                    print("=======")
                     Usage("-h")
                     sys.exit()
 
@@ -167,12 +169,12 @@ def main(argv=None):
                 for dirty_repo_dir in g_dirty_git_repo_dirs:
                     print('dir %s has uncommited changes or conflicts, please check\r\n' % (dirty_repo_dir))
 
-            print("Done git " + g_git_cmd_type.name + " all\r\n")
+            print("Done git " + g_git_cmd_type.name + " all")
         except getopt.error as msg:
             raise Usage(msg)
     except Usage as err:
         print >> sys.stderr, err.msg
-        print >> sys.stderr, "for help use --help\r\n"
+        print >> sys.stderr, "for help use --help"
         return 2
 
 
