@@ -46,7 +46,8 @@ def update_git_repo(git_cmd_type: GitCommandType, git_repo_dir: str, git_stash_i
             try:
                 git_repo.git.stash('save', True)
             except Exception as exception:
-                print("git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended\r\n" + str(exception))
+                print(
+                    "git stash repo:" + git_repo_dir + " Failed:\r\n git reset --hard recommended\r\n" + str(exception))
                 unhandled_git_repo_dirs.append(git_repo_dir)
                 return
 
@@ -86,7 +87,7 @@ def update_git_repo_thread(git_cmd_type: GitCommandType, root_path: str, git_sta
         git_update_thread_.start()
         git_update_thread_pools.append(git_update_thread_)
     else:
-        update_git_repo(root_path, False, dirty_git_repo_dirs)
+        update_git_repo(git_cmd_type, root_path, False, dirty_git_repo_dirs)
 
 
 def walk_and_update(git_cmd_type: GitCommandType, root_path: str, continue_when_meet_git: bool, depth: int,
